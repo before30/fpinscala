@@ -115,7 +115,39 @@ object RNG {
 
   }
 
-  def flatMap[A,B](f: Rand[A])(g: A => Rand[B]): Rand[B] = ???
+  def nonNegativeLessThan(n: Int): Rand[Int] = {
+    rng =>
+      val (i, rng2) = nonNegativeInt(rng)
+      val mod = i % n
+      if (i+(n-1)-mod >= 0) (mod, rng2)
+      else nonNegativeLessThan(n)(rng2)
+  }
+
+  def nonNegativeLessThan2(n: Int): Rand[Int] = {
+    flatMap(nonNegativeInt){
+      i =>
+        val mod = i % n
+        if (i+(n-1)-mod >= 0) unit(mod)
+        else nonNegativeLessThan2(n)
+    }
+  }
+
+  def flatMap[A,B](f: Rand[A])(g: A => Rand[B]): Rand[B] = {
+    rng =>{
+      val (v1, r2) = f(rng)
+      g(v1)(r2)
+    }
+  }
+
+  def map11[A,B](s: Rand[A])(f: A => B): Rand[B] =
+      flatMap(s)(a => unit(f(a)))
+
+
+
+
+  def map21[A,B,C](ra: Rand[A], rb: Rand[B])(f: (A, B) => C): Rand[C] = {
+        flatMap(ra)(a => map11(rb)(b => f(a, b)))
+  }
 }
 
 case class State[S,+A](run: S => (A, S)) {
@@ -150,8 +182,11 @@ object Application extends App {
 //  println(RNG.both(RNG.int, RNG.double)(RNG.Simple(100)))
 //
 //  println(RNG.both(RNG.int, RNG.int)(RNG.Simple(100)))
-  println(RNG.map2(RNG.int, RNG.unit(List[Int](1, 2, 3)))(_ :: _)(RNG.Simple(100)))
-  println(RNG.sequence(List(RNG.int, RNG.int))(RNG.Simple(100)))
-  println(RNG.sequence2(List(RNG.int, RNG.int, RNG.int))(RNG.Simple(100)))
-  println(RNG.sequence3(List(RNG.int, RNG.int, RNG.int))(RNG.Simple(100)))
+
+  println(RNG.map(RNG.int)(x => 0)(RNG.Simple(100)))
+
+//  println(RNG.map2(RNG.int, RNG.unit(List[Int](1, 2, 3)))(_ :: _)(RNG.Simple(100)))
+//  println(RNG.sequence(List(RNG.int, RNG.int))(RNG.Simple(100)))
+//  println(RNG.sequence2(List(RNG.int, RNG.int, RNG.int))(RNG.Simple(100)))
+//  println(RNG.sequence3(List(RNG.int, RNG.int, RNG.int))(RNG.Simple(100)))
 }
