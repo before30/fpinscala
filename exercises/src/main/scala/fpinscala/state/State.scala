@@ -151,12 +151,73 @@ object RNG {
 }
 
 case class State[S,+A](run: S => (A, S)) {
-  def map[B](f: A => B): State[S, B] =
-    sys.error("todo")
-  def map2[B,C](sb: State[S, B])(f: (A, B) => C): State[S, C] =
-    sys.error("todo")
-  def flatMap[B](f: A => State[S, B]): State[S, B] =
-    sys.error("todo")
+  def map[B](f: A => B): State[S, B] = {
+    flatMap(a=> State.unit(f(a)))
+  }
+
+  def map2[B,C](sb: State[S, B])(f: (A, B) => C): State[S, C] = {
+    flatMap(a => sb.map(b => f(a,b)))
+  }
+
+  def flatMap[B](f: A => State[S, B]): State[S, B] = {
+    State( rng => {
+      val (v1, s1) = run(rng)
+      f(v1).run(s1)
+    })
+  }
+
+}
+
+
+// unit flatMap map mp2 sequence를 일반화 하라.
+
+object State {
+  type Rand[A] = State[RNG, A]
+
+  def unit[S, A](a: A): State[S, A] = {
+    State(rng => (a, rng))
+  }
+
+  def sequence[S, A](sas: List[State[S, A]]): State[S, List[A]] = {
+
+    def go(s: S, actions: List[State[S,A]], acc: List[A]): (List[A],S) ={
+      actions match {
+        case Nil => (acc, s)
+        case h :: t => {
+          val (v, s1) = h.run(s)
+          go(s1, t, v :: acc)
+        }
+      }
+    }
+    State((s: S) => go(s,sas,List()))
+  }
+
+  def sequenceViaFoldLeft[S,A](l: List[State[S, A]]): State[S, List[A]] =
+    l.reverse.foldLeft(unit[S, List[A]](List()))((acc, f) => f.map2(acc)( _ :: _ ))
+
+  def modify[S](f: S => S): State[S, Unit] = for {
+    s <- get // Gets the current state and assigns it to `s`.
+    _ <- set(f(s)) // Sets the new state to `f` applied to `s`.
+  } yield ()
+
+  def get[S]: State[S, S] = State(s => (s, s))
+
+  def set[S](s: S): State[S, Unit] = State(_ => ((), s))
+
+  def simulateMachine(inputs: List[Input]): State[Machine, (Int, Int)] = {
+    for {
+      _ <- sequence(inputs.map(i => modify((s: Machine) => (i, s) match {
+        case (_, Machine(_, 0, _)) => s
+        case (Coin, Machine(false, _, _)) => s
+        case (Turn, Machine(true, _, _)) => s
+        case (Coin, Machine(true, candy, coin)) =>
+          Machine(false, candy, coin + 1)
+        case (Turn, Machine(false, candy, coin)) =>
+          Machine(true, candy - 1, coin)
+      })))
+      s <- get
+    } yield(s.coins, s.candies)
+  }
 }
 
 sealed trait Input
@@ -165,10 +226,6 @@ case object Turn extends Input
 
 case class Machine(locked: Boolean, candies: Int, coins: Int)
 
-object State {
-  type Rand[A] = State[RNG, A]
-  def simulateMachine(inputs: List[Input]): State[Machine, (Int, Int)] = ???
-}
 
 
 object Application extends App {
@@ -183,7 +240,10 @@ object Application extends App {
 //
 //  println(RNG.both(RNG.int, RNG.int)(RNG.Simple(100)))
 
-  println(RNG.map(RNG.int)(x => 0)(RNG.Simple(100)))
+//  println(RNG.map(RNG.int)(x => 0)(RNG.Simple(100)))
+
+  println(State.simulateMachine(List(Coin, Coin, Coin, Coin)).run(Machine(true, 1, 1)))
+
 
 //  println(RNG.map2(RNG.int, RNG.unit(List[Int](1, 2, 3)))(_ :: _)(RNG.Simple(100)))
 //  println(RNG.sequence(List(RNG.int, RNG.int))(RNG.Simple(100)))
