@@ -230,7 +230,8 @@ case class Machine(locked: Boolean, candies: Int, coins: Int)
 
 object Application extends App {
 
-//  println(RNG.int.apply(RNG.Simple(100)))
+  println(RNG.unit(10).apply(RNG.Simple(100)))
+  println(RNG.int.apply(RNG.Simple(100)))
 //  println(RNG.double2(RNG.Simple(100)))
 //  println(RNG.ints(4)(RNG.Simple(100)))
 //  println(RNG.ints2(4)(RNG.Simple(100)))
